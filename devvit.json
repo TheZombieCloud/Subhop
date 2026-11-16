@@ -1,0 +1,103 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "subhopgame",
+  "post": {
+    "dir": "dist/client",
+    "entrypoints": {
+      "default": {
+        "inline": true,
+        "entry": "splash.html"
+      },
+      "game": {
+        "entry": "game.html"
+      }
+    }
+  },
+  "server": {
+    "dir": "dist/server",
+    "entry": "index.cjs"
+  },
+  "permissions": {
+    "redis": true,
+    "journeys": true,
+    "reddit": {
+      "enable": true,
+      "scope": "user",
+      "asUser": ["SUBMIT_COMMENT", "SUBSCRIBE_TO_SUBREDDIT"]
+    }
+  },
+  "menu": {
+    "items": [
+      {
+        "label": "Subhop: set up home community",
+        "description": "Make daily journeys start or end in this community",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/home-setup"
+      },
+      {
+        "label": "Subhop: post today's puzzle",
+        "description": "Create today's daily Subhop post",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/post-daily"
+      },
+      {
+        "label": "Subhop: reset my run (testing)",
+        "description": "Forget your run on this post so you can play it again",
+        "location": "post",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/reset-me"
+      },
+      {
+        "label": "Subhop: reset my run on today's daily (testing)",
+        "description": "Forget your run on today's daily so you can play it again",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/reset-today"
+      },
+      {
+        "label": "Subhop: re-roll today's puzzle",
+        "description": "Replace today's daily with a fresh one and post it (only for a day nobody has played)",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/reroll-today"
+      },
+      {
+        "label": "Subhop: delete my data",
+        "description": "Remove your runs, scores, passport, streak and streak flair",
+        "location": "subreddit",
+        "endpoint": "/internal/menu/delete-my-data"
+      },
+      {
+        "label": "Subhop: post a test puzzle",
+        "description": "Random puzzle with its own leaderboard",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/post-test"
+      }
+    ]
+  },
+  "forms": {
+    "homeSetup": "/internal/form/home-setup",
+    "deleteMyData": "/internal/form/delete-my-data"
+  },
+  "scheduler": {
+    "tasks": {
+      "daily-post": {
+        "endpoint": "/internal/scheduler/daily-post",
+        "cron": "0 0 * * *"
+      }
+    }
+  },
+  "triggers": {
+    "onAppInstall": "/internal/triggers/on-app-install"
+  },
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build"
+  },
+  "dev": {
+    "subreddit": "subhopgame_dev"
+  }
+}

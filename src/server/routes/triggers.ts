@@ -1,0 +1,15 @@
+import { Hono } from 'hono';
+import type { TriggerResponse } from '@devvit/web/shared';
+import { createDailyPost } from '../core/post';
+
+export const triggers = new Hono();
+
+triggers.post('/on-app-install', async (c) => {
+  try {
+    const post = await createDailyPost();
+    return c.json<TriggerResponse>({ status: 'success', message: `Created daily post ${post.id}` });
+  } catch (error) {
+    console.error('install post failed', error);
+    return c.json<TriggerResponse>({ status: 'error', message: 'Failed to create post' }, 400);
+  }
+});

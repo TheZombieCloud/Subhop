@@ -1,0 +1,11 @@
+﻿node_modules
+.DS_Store
+dist
+.env
+dist-demo
+recordings
+.reddit-profile
+reddit-shots
+
+docs
+.github/workflows

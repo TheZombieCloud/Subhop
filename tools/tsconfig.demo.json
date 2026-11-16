@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../dist/types/demo",
+    "tsBuildInfoFile": "../dist/types/demo/tsconfig.tsbuildinfo",
+    "customConditions": ["browser"],
+    "rootDir": "../demo"
+  },
+  "include": ["../demo/**/*.ts"],
+  "exclude": ["../demo/vite.config.ts"],
+  "references": [{ "path": "./tsconfig.shared.json" }]
+}

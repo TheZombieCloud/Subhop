@@ -40,6 +40,7 @@ import { collectedSubs, passportSummary, passportTotal, runTag, stamp } from '..
 import { journeyRoutes, trackGiveUp, trackHop } from '../core/journey';
 import { peek } from '../core/peek';
 import { listProposals, propose, vote } from '../core/proposals';
+import { count } from '../core/stats';
 
 export const api = new Hono();
 
@@ -76,6 +77,8 @@ const formatTime = (ms: number) => {
 
 api.get('/init', async (c) => {
   const { username, puzzle } = await current();
+  // The feed card and the game screen both load this; count which one it was.
+  await count(puzzle.id, c.req.query('from') === 'card' ? 'views' : 'opens');
   const [players, leaders] = await Promise.all([playerCount(puzzle.id), leaderboard(puzzle.id, 0, 0)]);
   const best = leaders[0] ?? null;
   const subreddit = context.subredditName ?? '';

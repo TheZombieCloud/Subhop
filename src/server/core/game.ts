@@ -34,6 +34,7 @@ import type { TwistKind } from './net';
 
 import { dailyNumber, DAY_MS, isDailyId, todayId } from './days';
 import { winningProposal } from './proposals';
+import { count, countQuit, countWrong } from './stats';
 
 export { dailyNumber, todayId } from './days';
 const SCORE_HOP = 1e9;
@@ -131,6 +132,7 @@ export const startRun = async (puzzle: Puzzle, user: string): Promise<Run> => {
   if (existing) return existing; // one attempt only
   const run: Run = { status: 'playing', path: [puzzle.start], hops: 0, startedAt: Date.now() };
   await saveRun(puzzle.id, user, run);
+  await count(puzzle.id, 'started');
   return run;
 };
 
@@ -151,6 +153,7 @@ export const hop = async (puzzle: Puzzle, user: string, to: string): Promise<Hop
   if (run.hops === 0) await redis.hIncrBy(`first:${puzzle.id}`, to, 1);
   const closer = hopsLeft(puzzle, [...run.path, to]) < hopsLeft(puzzle, run.path);
   run.moves = (run.moves ?? '') + (closer ? 'c' : 's');
+  if (!closer) await countWrong(puzzle.id, here, to);
   run.path.push(to);
   run.hops += 1;
   if (to === puzzle.target) {
@@ -160,6 +163,8 @@ export const hop = async (puzzle: Puzzle, user: string, to: string): Promise<Hop
   } else if (run.hops >= MAX_HOPS) {
     run.status = 'gaveup';
     run.finishedAt = Date.now();
+    await count(puzzle.id, 'gaveup');
+    await countQuit(puzzle.id, to);
   }
   await saveRun(puzzle.id, user, run);
   return { ok: true, run };
@@ -183,6 +188,8 @@ export const giveUp = async (puzzle: Puzzle, user: string): Promise<Run | null> 
   run.status = 'gaveup';
   run.finishedAt = Date.now();
   await saveRun(puzzle.id, user, run);
+  await count(puzzle.id, 'gaveup');
+  await countQuit(puzzle.id, run.path[run.path.length - 1]!);
   return run;
 };
 
@@ -209,6 +216,11 @@ export const resetRun = async (pid: string, user: string): Promise<boolean> => {
     await redis.zIncrBy(`paths:${pid}`, run.path.join('>'), -1);
     await redis.hIncrBy(`hops:${pid}`, String(run.hops), -1);
   }
+  if (run.status === 'gaveup') {
+    await count(pid, 'gaveup', -1);
+    await countQuit(pid, run.path[run.path.length - 1]!, -1);
+  }
+  await count(pid, 'started', -1);
   await redis.del(runKey(pid, user));
   return true;
 };

@@ -6,6 +6,7 @@ import { resetProposalsFor } from '../core/proposals';
 import { nodeNames } from '../../shared/graph';
 import { getHomeConfig, HOME_MODES, MAX_HOME_EXITS, MIN_HOME_EXITS, sidebarRelated } from '../core/net';
 import { createDailyPost, createTestPost } from '../core/post';
+import { puzzleReport, statKeys } from '../core/stats';
 
 export const menu = new Hono();
 
@@ -70,13 +71,27 @@ menu.post('/reroll-today', async (c) => {
   try {
     const pid = todayId();
     const username = await reddit.getCurrentUsername();
-    await redis.del(`puzzle:${pid}`, `lb:${pid}`, `paths:${pid}`, `first:${pid}`, `hops:${pid}`);
+    await redis.del(`puzzle:${pid}`, `lb:${pid}`, `paths:${pid}`, `first:${pid}`, `hops:${pid}`, ...statKeys(pid));
     if (username) await resetRun(pid, username);
     return c.json<UiResponse>({ navigateTo: await handle(createDailyPost)() });
   } catch (error) {
     console.error('reroll-today failed', error);
     return c.json<UiResponse>({ showToast: 'Failed to re-roll today’s puzzle' }, 400);
   }
+});
+
+// Mods only, on a Subhop post: how that puzzle is going (views, starts, finishes, where people quit).
+menu.post('/puzzle-stats', async (c) => {
+  if (!context.postId || !(await redis.get(`post:${context.postId}`))) {
+    return c.json<UiResponse>({ showToast: 'Open this from a Subhop post' });
+  }
+  const pid = await puzzleIdForPost(context.postId);
+  return c.json<UiResponse>({
+    showForm: {
+      name: 'puzzleStats',
+      form: { title: `Stats for ${pid}`, description: await puzzleReport(pid), acceptLabel: 'Close', fields: [] },
+    },
+  });
 });
 
 // Anyone: delete everything Subhop stores about you here. Asks first; the form does the deleting.

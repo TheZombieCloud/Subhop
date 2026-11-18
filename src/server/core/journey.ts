@@ -36,7 +36,13 @@ export const trackHop = (c: Context, puzzle: Puzzle, run: Run) => {
   const left = hopsLeft(puzzle, run.path);
   const progress = Math.min(0.95, Math.max(0, 1 - left / Math.max(1, puzzle.par)));
   return safely('progress', () =>
-    telemetry.journeyProgress({ journeyId, progress, action: 'hop', actionDetails: `hop_${run.hops}` })
+    telemetry.journeyProgress({
+      journeyId,
+      progress,
+      action: 'hop',
+      // Which puzzle, which hop, and whether it got closer: "2026-11-18 hop_2 wrong".
+      actionDetails: `${puzzle.id} hop_${run.hops} ${run.moves?.endsWith('c') ? 'closer' : 'wrong'}`,
+    })
   );
 };
 

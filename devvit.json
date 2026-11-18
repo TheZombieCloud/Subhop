@@ -64,6 +64,13 @@
         "endpoint": "/internal/menu/reroll-today"
       },
       {
+        "label": "Subhop: stats for this puzzle",
+        "description": "Views, starts, finishes and where players gave up",
+        "location": "post",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/puzzle-stats"
+      },
+      {
         "label": "Subhop: delete my data",
         "description": "Remove your runs, scores, passport, streak and streak flair",
         "location": "subreddit",
@@ -80,7 +87,8 @@
   },
   "forms": {
     "homeSetup": "/internal/form/home-setup",
-    "deleteMyData": "/internal/form/delete-my-data"
+    "deleteMyData": "/internal/form/delete-my-data",
+    "puzzleStats": "/internal/form/puzzle-stats"
   },
   "scheduler": {
     "tasks": {

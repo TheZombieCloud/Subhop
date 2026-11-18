@@ -19,7 +19,7 @@ export const Splash = () => {
   const now = useNow(30_000);
 
   useEffect(() => {
-    call<InitResponse>('init').then(setData, (e: Error) => setError(e.message));
+    call<InitResponse>('init?from=card').then(setData, (e: Error) => setError(e.message));
   }, []);
 
   if (error) return <div className="paper center error">{error}</div>;

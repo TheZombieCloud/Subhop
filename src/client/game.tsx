@@ -100,7 +100,10 @@ export const App = () => {
             players={init.players}
             busy={busy}
             onStart={() => {
-              if (!init.username) return showLoginPrompt();
+              if (!init.username) {
+                interact('login_prompt');
+                return showLoginPrompt();
+              }
               void act(
                 async () => {
                   await startJourney();

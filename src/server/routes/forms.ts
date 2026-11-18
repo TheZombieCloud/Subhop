@@ -38,6 +38,9 @@ forms.post('/home-setup', async (c) => {
   return c.json<UiResponse>({ showToast: { text: SAVED[mode](home.sub), appearance: 'success' } });
 });
 
+// The stats report is read-only: closing it does nothing.
+forms.post('/puzzle-stats', (c) => c.json<UiResponse>({}));
+
 forms.post('/delete-my-data', async (c) => {
   const username = await reddit.getCurrentUsername();
   if (!username) return c.json<UiResponse>({ showToast: 'Log in first' }, 400);

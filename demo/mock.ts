@@ -17,7 +17,7 @@ import type {
   Run,
 } from '../src/shared/api';
 import { district } from '../src/shared/districts';
-import { nodeNames, pathBetween, puzzlePool } from '../src/shared/graph';
+import { hasNode, nodeNames, pathBetween, puzzlePool, shortestPath } from '../src/shared/graph';
 import { buildPuzzle, checkProposal, homeNet, homePuzzle, hopsLeft, netFor, optimalRoute } from '../src/shared/rules';
 import type { HomeConfig, TwistKind } from '../src/shared/rules';
 
@@ -64,6 +64,11 @@ const makePuzzle = (): Puzzle => {
     case 'proposed':
       return buildPuzzle({ id: DEMO_DAY, number: 11, ...puzzlePool[5]!, by: 'yarnover_yolanda' }, null, null);
   }
+  // ?from=a&to=b previews any journey on the map (for checking layouts with long names).
+  const q = new URLSearchParams(location.search);
+  const [from, to] = [q.get('from'), q.get('to')];
+  const hops = from && to && hasNode(from) && hasNode(to) ? shortestPath(from, to) : null;
+  if (from && to && hops && hops.length > 1) return buildPuzzle({ id: DEMO_DAY, number: 7, start: from, target: to, par: hops.length - 1 }, null, null);
   return buildPuzzle({ id: DEMO_DAY, number: 7, ...puzzlePool[0]! }, null, null);
 };
 
@@ -92,21 +97,8 @@ const top3 = (): LeaderboardRow[] =>
     avatar: avatarFor(username),
   }));
 
-// Fake avatars for some players; the rest show the initial fallback.
-// Shaped like real Snoovatars: a tall transparent cutout of a full-body figure.
-const avatarFor = (username: string): string | null => {
-  if (hash(username) % 2 === 0) return null;
-  const c = ['#ff6b3d', '#3d8bff', '#29a36a', '#a05cff'][hash(username) % 4]!;
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 600">` +
-    `<line x1="190" y1="40" x2="230" y2="10" stroke="#333" stroke-width="6"/><circle cx="232" cy="10" r="10" fill="${c}"/>` +
-    `<ellipse cx="190" cy="120" rx="95" ry="75" fill="#fff" stroke="#333" stroke-width="6"/>` +
-    `<circle cx="160" cy="115" r="12" fill="${c}"/><circle cx="220" cy="115" r="12" fill="${c}"/>` +
-    `<rect x="115" y="200" width="150" height="230" rx="60" fill="${c}" stroke="#333" stroke-width="6"/>` +
-    `<rect x="130" y="420" width="45" height="150" rx="20" fill="#444"/><rect x="205" y="420" width="45" height="150" rx="20" fill="#444"/>` +
-    `</svg>`;
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
-};
+// Sample players have no Snoovatar, so the game shows Reddit's standard avatars for them.
+const avatarFor = (_username: string): string | null => null;
 
 const nodeView = (name: string): NodeView => ({ name, description: net.describe(name), exits: net.exits(name) });
 

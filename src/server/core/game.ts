@@ -193,7 +193,7 @@ const recordFinish = async (puzzle: Puzzle, user: string, run: Run) => {
   await redis.zAdd(`lb:${puzzle.id}`, { member: user, score: run.hops * SCORE_HOP + timeMs });
   await redis.zIncrBy(`paths:${puzzle.id}`, run.path.join('>'), 1);
   await redis.hIncrBy(`hops:${puzzle.id}`, String(run.hops), 1);
-  if (!puzzle.id.startsWith('test-')) await bumpStreak(user, puzzle.id);
+  if (isDailyId(puzzle.id)) await bumpStreak(user, puzzle.id, run);
 };
 
 /**
@@ -214,9 +214,12 @@ export const resetRun = async (pid: string, user: string): Promise<boolean> => {
 };
 
 // ---- streaks ----
-const bumpStreak = async (user: string, pid: string) => {
+// Only a daily played on its own day counts (a run that started that day may finish after
+// midnight). Older dailies stay playable, but they can't build a streak or break one.
+const bumpStreak = async (user: string, pid: string, run: Run) => {
+  if (todayId(run.startedAt) !== pid) return;
   const s = await redis.hGetAll(`streak:${user}`);
-  if (s.last === pid) return;
+  if (s.last && s.last >= pid) return;
   const yesterday = todayId(Date.parse(pid) - DAY_MS);
   const count = s.last === yesterday ? Number(s.count ?? 0) + 1 : 1;
   await redis.hSet(`streak:${user}`, { last: pid, count: String(count) });

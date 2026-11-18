@@ -101,6 +101,11 @@ button:disabled {
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
 }
+.leg > div,
+.visa-text {
+  container-type: inline-size;
+  min-width: 0;
+}
 .sub-title.dest {
   color: var(--navy);
 }

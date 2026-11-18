@@ -217,6 +217,13 @@ const dayLabel = (id: string): string => {
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 };
 
+/** A community's name as a heading. Long names shrink to fit one line instead of breaking mid-word. */
+const SubTitle = ({ sub, dest }: { sub: string; dest?: boolean }) => (
+  <h1 className={`sub-title${dest ? ' dest' : ''}`} style={{ fontSize: `min(34px, calc(100cqi / ${(sub.length + 2) * 0.52}))` }}>
+    r/{sub}
+  </h1>
+);
+
 const TwistNotice = ({ twist }: { twist: Twist }) => {
   const t = twistInfo(twist);
   return (
@@ -246,7 +253,7 @@ const Intro = (p: { puzzle: Puzzle; streak: number; players: number; busy: boole
           <Stamp sub={p.puzzle.start} caption="Departure" size={96} className="slam" />
           <div>
             <span className="kicker">From · {from.name}</span>
-            <h1 className="sub-title">r/{p.puzzle.start}</h1>
+            <SubTitle sub={p.puzzle.start} />
           </div>
         </div>
         <div className="leg-line" aria-hidden="true">
@@ -261,13 +268,13 @@ const Intro = (p: { puzzle: Puzzle; streak: number; players: number; busy: boole
           </span>
           <div>
             <span className="kicker">To · {to.name}</span>
-            <h1 className="sub-title dest">r/{p.puzzle.target}</h1>
+            <SubTitle sub={p.puzzle.target} dest />
           </div>
         </div>
       </section>
 
       <ol className="rules">
-        <li>Each community has six neighbours. Tap one to hop there.</li>
+        <li>Each community has six exits: the places its commenters also comment. Tap one to hop there.</li>
         <li>
           Reach r/{p.puzzle.target} in {p.puzzle.par} hops or fewer. You get one try.
           {p.puzzle.twist?.kind === 'noback' && ' No stepping back today.'}
@@ -407,7 +414,7 @@ const Playing = (p: {
           <p className="kicker">
             {entry === 1 ? 'Departure' : `Entry ${entry}`} · {here.name}
           </p>
-          <h1 className="sub-title">r/{p.node.name}</h1>
+          <SubTitle sub={p.node.name} />
           <p className="visa-desc">{p.node.description}</p>
           <PeekLine sub={p.node.name} />
         </div>
@@ -988,7 +995,7 @@ const FullLeaderboard = ({ puzzle, onBack }: { puzzle: Puzzle; onBack: () => voi
     <div className="screen">
       <Cover puzzle={puzzle} right="Arrivals board" />
       <button className="link back" onClick={onBack}>
-        ‹ Back to your passport
+        ‹ Back to your results
       </button>
       {!data ? (
         <p className="muted-text">Loading…</p>

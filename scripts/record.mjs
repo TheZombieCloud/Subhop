@@ -8,7 +8,7 @@
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { extname, join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { chromium } from 'playwright-core';
@@ -46,7 +46,7 @@ const base = `http://127.0.0.1:${server.address().port}`;
 const PHONE = { width: 390, height: 844 };
 const FEED = { width: 390, height: 520 };
 
-const makeActions = (page, stills, name) => {
+const makeActions = (page, stills, name, captions) => {
   const tapMarker = async (locator) => {
     const box = await locator.boundingBox();
     if (!box) return;
@@ -91,6 +91,10 @@ const makeActions = (page, stills, name) => {
       await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
       await page.waitForTimeout(700);
     },
+    /** Caption shown beside the phone from now until the next one (captioned video only). */
+    caption(text) {
+      captions.push({ t: Date.now() / 1000, text });
+    },
     async still(label) {
       const file = `${name}-${String(stills.length + 1).padStart(2, '0')}.png`;
       await page.screenshot({ path: join(out, file) });
@@ -116,6 +120,57 @@ const encode = (frames, endT, file) => {
     ffmpeg,
     ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', 'list.txt',
       '-vf', 'fps=30,scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', file],
+    { cwd: dir, encoding: 'utf8' }
+  );
+  rmSync(dir, { recursive: true, force: true });
+  if (r.status !== 0) throw new Error(`ffmpeg failed: ${r.stderr}`);
+};
+
+// Captioned version for sharing: 1920x1080, the phone on the left, the current caption on the right.
+const fontUrl = (pkg, w) => pathToFileURL(join(root, `node_modules/@fontsource/${pkg}/files/${pkg}-latin-${w}-normal.woff2`)).href;
+const encodeCaptioned = async (browser, frames, endT, captions, file) => {
+  const dir = join(tmpdir(), `subhop-cap-${process.pid}-${Date.now()}`);
+  mkdirSync(dir, { recursive: true });
+  const t0 = frames[0].t;
+  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+  const caps = ['ffconcat version 1.0'];
+  for (const [i, c] of captions.entries()) {
+    const html = join(dir, `c${i}.html`);
+    writeFileSync(
+      html,
+      `<!doctype html><meta charset="utf-8"><style>
+@font-face{font-family:RS;font-weight:800;src:url(${fontUrl('reddit-sans', 800)})}
+@font-face{font-family:RSC;font-weight:800;src:url(${fontUrl('reddit-sans-condensed', 800)})}
+*{margin:0;box-sizing:border-box}body{width:1920px;height:1080px;background:#1d2b4a;position:relative}
+.frame{position:absolute;left:232px;top:22px;width:498px;height:1036px;border-radius:26px;background:#0e1628}
+.side{position:absolute;left:860px;right:120px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center}
+.brand{font:800 34px RSC;letter-spacing:.3em;color:#d8b65a;margin-bottom:34px}
+p{font:800 66px/1.18 RS;color:#f3e6c4}
+</style><div class="frame"></div><div class="side"><div class="brand">SUBHOP</div><p>${c.text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p></div>`
+    );
+    await page.goto(pathToFileURL(html).href);
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: join(dir, `c${i}.png`) });
+    const from = i === 0 ? t0 : c.t;
+    const to = captions[i + 1]?.t ?? endT;
+    caps.push(`file 'c${i}.png'`, `duration ${Math.max(0.05, to - from).toFixed(3)}`);
+  }
+  caps.push(`file 'c${captions.length - 1}.png'`);
+  writeFileSync(join(dir, 'caps.txt'), caps.join('\n'));
+  await page.close();
+  const lines = ['ffconcat version 1.0'];
+  frames.forEach((f, i) => {
+    const name = `f${String(i).padStart(5, '0')}.jpg`;
+    writeFileSync(join(dir, name), Buffer.from(f.data, 'base64'));
+    lines.push(`file '${name}'`, `duration ${Math.max(0.001, (frames[i + 1]?.t ?? endT) - f.t).toFixed(4)}`);
+  });
+  lines.push(`file 'f${String(frames.length - 1).padStart(5, '0')}.jpg'`);
+  writeFileSync(join(dir, 'list.txt'), lines.join('\n'));
+  const r = spawnSync(
+    ffmpeg,
+    ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', 'caps.txt', '-f', 'concat', '-safe', '0', '-i', 'list.txt',
+      '-filter_complex', '[0:v]fps=30[bg];[1:v]fps=30,scale=462:1000[ph];[bg][ph]overlay=250:40:shortest=1',
+      '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', file],
     { cwd: dir, encoding: 'utf8' }
   );
   rmSync(dir, { recursive: true, force: true });
@@ -155,33 +210,44 @@ const SCENARIOS = [
     url: 'game.html?s=daily',
     run: async (a) => {
       const { route } = await a.demo();
-      await a.wait(1500);
+      a.caption(`Today’s puzzle: get from r/${route[0]} to r/${route.at(-1)}.`);
+      await a.wait(2600);
       await a.still('Intro');
       await a.scrollThrough(220, 600);
       await a.scrollTop();
-      await a.tap(a.button(/Start the journey/), 1400);
+      a.caption('Each community shows six others that share its commenters. I tap one to go there.');
+      await a.tap(a.button(/Start the journey/), 2600);
       await a.still('First community');
       const exits = await a.page.locator('button.exit .exit-sub').allInnerTexts();
       const wrong = exits.map((t) => t.replace(/^r\//, '')).find((s) => s !== route[1] && s !== route.at(-1));
       if (wrong) {
+        a.caption('I guess wrong here, but I still get a stamp for it.');
         await a.hop(wrong);
-        await a.wait(700);
+        await a.wait(1800);
         await a.still('Wrong turn (new stamp?)');
-        await a.tap(a.button(/Step back/), 1300);
+        a.caption('I can step back, but it costs me a hop.');
+        await a.tap(a.button(/Step back/), 2200);
       }
+      a.caption(`The shortest route is ${route.join(' → ')}.`);
       await a.hopRoute(route);
       await a.wait(1200);
+      a.caption(`I got there in ${route.length - 1 + (wrong ? 2 : 0)} hops. Par was ${route.length - 1}.`);
+      await a.wait(2800);
       await a.still('Results');
-      await a.tap(a.button(/^Your passport$/), 1300);
+      a.caption('My passport keeps a stamp for every community I’ve been through.');
+      await a.tap(a.button(/^Your passport$/), 1800);
       await a.still('Passport');
       await a.scrollThrough(300, 600);
+      a.caption('After that I can vote on tomorrow’s puzzle.');
       await a.tap(a.button(/Back to your results/), 1200);
-      await a.scrollThrough(240, 900);
+      await a.scrollThrough(240, 1100);
       await a.still('Results, bottom');
+      a.caption('This is how the other players got there.');
       await a.tap(a.button(/How everyone else did/), 1000);
-      await a.scrollThrough(260, 800);
+      await a.scrollThrough(260, 900);
       await a.still('Today’s stats');
-      await a.tap(a.button(/^All [0-9,]+$/), 1500);
+      a.caption('Fewest hops wins and time breaks ties. There’s a new puzzle every day.');
+      await a.tap(a.button(/^All [0-9,]+$/), 3000);
       await a.still('Full leaderboard');
     },
   },
@@ -325,9 +391,10 @@ for (const s of chosen) {
   await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 88, maxWidth: size.width * 2, maxHeight: size.height * 2 });
   await page.goto(`${base}/${s.url}`);
   const stills = [];
+  const captions = [];
   process.stdout.write(`recording ${s.name}… `);
   try {
-    await s.run(makeActions(page, stills, s.name));
+    await s.run(makeActions(page, stills, s.name, captions));
     await page.waitForTimeout(800);
   } catch (e) {
     console.log(`FAILED: ${e.message.split('\n')[0]}`);
@@ -340,6 +407,7 @@ for (const s of chosen) {
     continue;
   }
   encode(frames, endT, join(out, `${s.name}.mp4`));
+  if (captions.length) await encodeCaptioned(browser, frames, endT, captions, join(out, `${s.name}-captioned.mp4`));
   done.push({ ...s, stills, seconds: Math.round(endT - frames[0].t) });
   console.log(`${Math.round(endT - frames[0].t)}s, ${stills.length} stills`);
 }

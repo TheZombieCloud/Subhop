@@ -1,4 +1,4 @@
-import { reddit } from '@devvit/web/server';
+import { reddit, redis } from '@devvit/web/server';
 import type { Puzzle } from '../../shared/api';
 import { getPuzzle, linkPost, randomTestPuzzle, savePuzzle, todayId } from './game';
 
@@ -23,7 +23,21 @@ const createPuzzlePost = async (puzzle: Puzzle, title: string) => {
 /** Today's daily puzzle (used by the scheduler, install trigger and mod menu). */
 export const createDailyPost = async () => {
   const puzzle = await getPuzzle(todayId());
-  return createPuzzlePost(puzzle, titleFor(puzzle, `Subhop #${puzzle.number}`));
+  const post = await createPuzzlePost(puzzle, titleFor(puzzle, `Subhop #${puzzle.number}`));
+  await redis.set(`posted:${puzzle.id}`, post.id);
+  return post;
+};
+
+/**
+ * Posts today's daily unless it's already up. The scheduler calls this at midnight UTC and
+ * again every 15 minutes, so a missed or failed midnight run is made up for soon after.
+ * Returns the new post's id, or null if today's was already posted.
+ *
+ *   posted:{day}   string   id of the daily post made for that day
+ */
+export const ensureDailyPost = async (): Promise<string | null> => {
+  if (await redis.get(`posted:${todayId()}`)) return null;
+  return (await createDailyPost()).id;
 };
 
 /** A random puzzle with its own fresh leaderboard, for playtesting. */

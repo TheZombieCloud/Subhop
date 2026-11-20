@@ -95,6 +95,10 @@
       "daily-post": {
         "endpoint": "/internal/scheduler/daily-post",
         "cron": "0 0 * * *"
+      },
+      "daily-post-check": {
+        "endpoint": "/internal/scheduler/daily-post",
+        "cron": "*/15 * * * *"
       }
     }
   },

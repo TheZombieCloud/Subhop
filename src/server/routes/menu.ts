@@ -71,7 +71,7 @@ menu.post('/reroll-today', async (c) => {
   try {
     const pid = todayId();
     const username = await reddit.getCurrentUsername();
-    await redis.del(`puzzle:${pid}`, `lb:${pid}`, `paths:${pid}`, `first:${pid}`, `hops:${pid}`, ...statKeys(pid));
+    await redis.del(`posted:${pid}`, `puzzle:${pid}`, `lb:${pid}`, `paths:${pid}`, `first:${pid}`, `hops:${pid}`, ...statKeys(pid));
     if (username) await resetRun(pid, username);
     return c.json<UiResponse>({ navigateTo: await handle(createDailyPost)() });
   } catch (error) {

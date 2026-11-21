@@ -1,7 +1,7 @@
 // Validates src/shared/graph.json and generates src/shared/puzzles.json.
 // Run: npm run puzzles
 import { readFileSync, writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -97,67 +97,61 @@ const rand = () => {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 
-// ---- fairness: can topic sense solve it? ----
-// A simulated player who sees only exit names and their district (as the game shows them), never the
-// map. They take the target if it's an exit, else head for the target's district (through its main
-// community if they're outside it), else a hub, else anything new. A puzzle is kept only if this player
-// usually arrives close to par: hard because the route is clever, not because the map is a maze.
-const GATEWAY = {
-  crafts: 'DIY', food: 'Cooking', home: 'gardening', world: 'travel', motors: 'cars', sports: 'sports',
-  animals: 'aww', gaming: 'gaming', tech: 'technology', science: 'science', outdoors: 'Outdoors',
-  fitness: 'Fitness', music: 'Music', screen: 'movies', arts: 'books', money: 'personalfinance',
-};
-const gateways = new Set(Object.values(GATEWAY));
-const pick = (list) => list[Math.floor(rand() * list.length)];
-const sensibleHops = (start, target, cap = 20) => {
-  const td = districtOf.get(target);
-  const seen = new Set([start]);
-  let here = start;
-  for (let hops = 1; hops <= cap; hops++) {
-    const exits = graph[here][1];
-    const fresh = exits.filter((e) => !seen.has(e));
-    const opts = fresh.length ? fresh : exits;
-    const same = opts.filter((o) => districtOf.get(o) === td);
-    const hubs = opts.filter((o) => districtOf.get(o) === 'lounge' || gateways.has(o));
-    if (opts.includes(target)) return hops;
-    if (same.length) here = same.includes(GATEWAY[td]) && districtOf.get(here) !== td ? GATEWAY[td] : pick(same);
-    else if (opts.includes(GATEWAY[td])) here = GATEWAY[td];
-    else here = pick(hubs.length ? hubs : opts);
-    seen.add(here);
+// ---- difficulty: how does a simulated player do? ----
+// The bot lives in src/shared/bot.ts (the server uses the same one for twists and player proposals).
+// It sees exit names, their districts and the warmer/colder label, never the map. Each candidate is
+// rated by how many hops over par the bot takes on average. Puzzles it nearly always solves at par
+// are dropped as too easy, puzzles it gets lost on are dropped as too hard, and the rest are split
+// into easy, medium and hard.
+const { ratePuzzle, levelOf, tooEasy } = await import(pathToFileURL(join(root, 'src/shared/bot.ts')).href);
+const world = { exits: (n) => graph[n][1], district: (n) => districtOf.get(n) };
+const toTarget = new Map(); // target -> { node: hops to target }
+for (const s of names) {
+  const { dist } = bfs(s);
+  for (const [t, d] of Object.entries(dist)) {
+    if (!toTarget.has(t)) toTarget.set(t, {});
+    toTarget.get(t)[s] = d;
   }
-  return null;
+}
+const rate = (c) => {
+  const d = toTarget.get(c.target);
+  return ratePuzzle(world, { start: c.start, target: c.target, par: c.par, twist: null }, (path) => d[path[path.length - 1]]);
 };
-const TRIALS = 24;
-const fair = (c) => {
-  let near = 0;
-  for (let i = 0; i < TRIALS; i++) {
-    const h = sensibleHops(c.start, c.target);
-    if (h !== null && h <= c.par + 2) near++;
-  }
-  return near / TRIALS;
-};
-const FAIR_MIN = 0.6; // at least 60% of sensible runs finish within par + 2
 const before = candidates.length;
-const fairness = new Map(candidates.map((c) => [c, fair(c)]));
-candidates.splice(0, candidates.length, ...candidates.filter((c) => fairness.get(c) >= FAIR_MIN));
+const ratings = new Map(candidates.map((c) => [c, rate(c)]));
+const spread = {};
+for (const r of ratings.values()) {
+  const k = (Math.floor(r.over * 2) / 2).toFixed(1);
+  spread[k] = (spread[k] ?? 0) + 1;
+}
+const easyOut = candidates.filter((c) => tooEasy(ratings.get(c))).length;
+const hardOut = candidates.filter((c) => levelOf(ratings.get(c)) === null).length;
+candidates.splice(0, candidates.length, ...candidates.filter((c) => !tooEasy(ratings.get(c)) && levelOf(ratings.get(c))));
 for (let i = candidates.length - 1; i > 0; i--) {
   const j = Math.floor(rand() * (i + 1));
   [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
 }
 
-// Avoid repeating a start or target within a 10-day window.
+// Up to 250 per level, never repeating a start or target within 10 puzzles of the same level.
+const PER_LEVEL = 250;
 const pool = [];
-const recent = [];
-for (const c of candidates) {
-  if (recent.some((r) => r.start === c.start || r.target === c.target || r.start === c.target)) continue;
-  pool.push({ start: c.start, target: c.target, par: c.par });
-  recent.push(c);
-  if (recent.length > 10) recent.shift();
-  if (pool.length >= 730) break;
+const kept = { easy: 0, medium: 0, hard: 0 };
+for (const level of ['easy', 'medium', 'hard']) {
+  const recent = [];
+  for (const c of candidates) {
+    if (levelOf(ratings.get(c)) !== level) continue;
+    if (recent.some((r) => r.start === c.start || r.target === c.target || r.start === c.target)) continue;
+    pool.push({ start: c.start, target: c.target, par: c.par, level });
+    recent.push(c);
+    if (recent.length > 10) recent.shift();
+    if (++kept[level] >= PER_LEVEL) break;
+  }
 }
 
 // Puzzle #1 is the showcase.
 const showcase = { start: 'batman', target: 'knitting', par: bfs('batman').dist.knitting };
+const showcaseRating = rate(showcase);
+showcase.level = levelOf(showcaseRating) ?? 'easy';
 const puzzles = [showcase, ...pool.filter((p) => !(p.start === showcase.start && p.target === showcase.target))];
 writeFileSync(outPath, JSON.stringify(puzzles) + '\n');
 
@@ -166,6 +160,9 @@ console.log(`subreddits:        ${names.length}`);
 console.log(`districts:         ${Object.keys(districts).length}`);
 console.log(`unreachable pairs: ${unreachablePairs}`);
 console.log(`diameter:          ${maxPar}`);
-console.log(`candidate puzzles: ${before}, fair to topic sense: ${candidates.length}`);
-console.log(`puzzles written:   ${puzzles.length}  par histogram ${JSON.stringify(parHist)}`);
-console.log(`showcase:          r/${showcase.start} -> r/${showcase.target} par ${showcase.par}, fair ${fair(showcase).toFixed(2)}`);
+console.log(`candidate puzzles: ${before}  too easy ${easyOut}, too hard ${hardOut}, kept ${candidates.length}`);
+const keptOver = candidates.reduce((sum, c) => sum + ratings.get(c).over, 0) / candidates.length;
+console.log(`kept puzzles:      bot averages ${keptOver.toFixed(2)} hops over par`);
+console.log(`hops over par:     ${JSON.stringify(Object.fromEntries(Object.entries(spread).sort((x, y) => x[0] - y[0])))}`);
+console.log(`puzzles written:   ${puzzles.length}  ${JSON.stringify(kept)}  par histogram ${JSON.stringify(parHist)}`);
+console.log(`showcase:          r/${showcase.start} -> r/${showcase.target} par ${showcase.par}, ${showcaseRating.over.toFixed(2)} over par, ${showcase.level}`);

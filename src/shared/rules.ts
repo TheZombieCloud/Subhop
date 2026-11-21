@@ -1,4 +1,7 @@
 import type { HomeSide, Puzzle, Twist } from './api';
+import { levelOf, ratePuzzle } from './bot';
+import type { Level } from './bot';
+import { districtOf } from './districts';
 import { describe, distances, exitsOf, hasNode, nodeNames, pathBetween } from './graph';
 
 /*
@@ -93,7 +96,7 @@ export const homePuzzle = (
 export const PROPOSAL_MIN_HOPS = 3;
 export const PROPOSAL_MAX_HOPS = 5;
 
-export type ProposalCheck = { ok: true; hops: number } | { ok: false; reason: string };
+export type ProposalCheck = { ok: true; hops: number; level: Level } | { ok: false; reason: string };
 
 /** Whether start → target makes a fair daily on this map (and respects a fixed home end). */
 export const checkProposal = (
@@ -112,7 +115,15 @@ export const checkProposal = (
   const hops = route.length - 1;
   if (hops < PROPOSAL_MIN_HOPS) return { ok: false, reason: `Too close: ${hops} ${hops === 1 ? 'hop' : 'hops'}` };
   if (hops > PROPOSAL_MAX_HOPS) return { ok: false, reason: `Too far: ${hops} hops` };
-  return { ok: true, hops };
+  // The same bot that filters the daily pool: a pair it gets lost on isn't a fair daily.
+  const level = levelOf(
+    ratePuzzle({ exits: net.exits, district: districtOf }, { start, target, par: hops, twist: null }, (path) => {
+      const rest = pathBetween(net.exits, path[path.length - 1] ?? start, target);
+      return rest.length ? rest.length - 1 : hops;
+    })
+  );
+  if (!level) return { ok: false, reason: 'Too hard to find a way' };
+  return { ok: true, hops, level };
 };
 
 // ---- twists ----
@@ -150,19 +161,45 @@ export const hopLetter = (p: NetInput & Pick<Puzzle, 'twist' | 'par'>, path: str
   return after < before ? 'c' : after > before ? 'f' : 's';
 };
 
-/** Choose a twist that actually changes the puzzle, and the new par. */
-export const planTwist = (
+type Ratable = NetInput & Pick<Puzzle, 'twist' | 'par'>;
+
+/** How hard the bot finds this puzzle, twist included; null when it's too hard to be fair. */
+export const levelFor = (p: Ratable): Level | null => {
+  const net = netFor(p);
+  return levelOf(ratePuzzle({ exits: net.exits, district: districtOf }, p, (path) => hopsLeft(p, path)));
+};
+
+/** The level the daily pool is drawn from on each weekday (UTC). Twist days start lower: the twist adds to it. */
+export const baseLevelFor = (pid: string): Level => {
+  const day = new Date(`${pid}T00:00:00Z`).getUTCDay();
+  return day === 6 ? 'hard' : day === 4 || day === 5 || day === 0 ? 'medium' : 'easy';
+};
+
+/** Start at the day's pick, then step through the rest, so a twist that fails the bot has a stand-in. */
+const rotate = <T>(items: T[], n: number, limit: number): T[] => {
+  const out: T[] = [];
+  const len = items.length;
+  for (let k = 0; k < Math.min(len, limit); k++) {
+    const item = items[((((n + k) * 7919) % len) + len) % len];
+    if (item !== undefined && !out.includes(item)) out.push(item);
+  }
+  return out;
+};
+const TWIST_TRIES = 12;
+
+/** Twists that actually change the puzzle, each with its new par, the day's pick first. */
+export const twistOptions = (
   net: Net,
   start: string,
   target: string,
   kind: TwistKind,
   n: number
-): { twist: Twist; par: number } | null => {
+): { twist: Twist; par: number }[] => {
   const base = pathBetween(net.exits, start, target);
-  if (!base.length) return null;
+  if (!base.length) return [];
   const par = base.length - 1;
 
-  if (kind === 'noback') return { twist: { kind }, par };
+  if (kind === 'noback') return [{ twist: { kind }, par }];
 
   if (kind === 'avoid') {
     // Close a sub on the obvious route, as long as the detour costs at most 2 extra hops.
@@ -170,8 +207,7 @@ export const planTwist = (
       .slice(1, -1)
       .map((sub) => ({ sub, route: optimalRoute(net, start, target, { kind: 'avoid', sub }) }))
       .filter((o) => o.route.length && o.route.length - 1 <= par + 2);
-    const o = pick(options, n);
-    return o ? { twist: { kind: 'avoid', sub: o.sub }, par: o.route.length - 1 } : null;
+    return rotate(options, n, TWIST_TRIES).map((o) => ({ twist: { kind: 'avoid', sub: o.sub }, par: o.route.length - 1 }));
   }
 
   // Detour: a sub off the obvious route that adds 1–2 hops.
@@ -181,8 +217,7 @@ export const planTwist = (
     .sort()
     .map((sub) => ({ sub, route: optimalRoute(net, start, target, { kind: 'via', sub }) }))
     .filter((o) => o.route.length && o.route.length - 1 >= par + 1 && o.route.length - 1 <= par + 2);
-  const o = pick(options, n);
-  return o ? { twist: { kind: 'via', sub: o.sub }, par: o.route.length - 1 } : null;
+  return rotate(options, n, TWIST_TRIES).map((o) => ({ twist: { kind: 'via', sub: o.sub }, par: o.route.length - 1 }));
 };
 
 /** Wraps a start/target into a full puzzle, applying a twist if one fits. */
@@ -202,10 +237,17 @@ export const buildPuzzle = (
     twist: null,
     home: side,
     homeExits: home && side ? home.exits : [],
+    level: null,
   };
-  if (!kind) return puzzle;
-  const plan = planTwist(netFor(puzzle), puzzle.start, puzzle.target, kind, Math.abs(base.number) + base.start.length);
-  return plan ? { ...puzzle, twist: plan.twist, par: plan.par } : puzzle;
+  // The first twist the bot can still solve fairly; if none can, the day runs without one.
+  const options = kind ? twistOptions(netFor(puzzle), puzzle.start, puzzle.target, kind, Math.abs(base.number) + base.start.length) : [];
+  for (const o of options) {
+    const twisted = { ...puzzle, twist: o.twist, par: o.par };
+    const level = levelFor(twisted);
+    if (level) return { ...twisted, level };
+  }
+  // A puzzle the bot finds too hard (only possible for home journeys) is labelled hard.
+  return { ...puzzle, level: levelFor(puzzle) ?? 'hard' };
 };
 
 export const parseTwist = (raw: string | undefined): Twist | null => {

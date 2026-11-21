@@ -31,7 +31,7 @@ import { INK } from './ink';
 import { BoxStamp, InkDefs, MiniStamp, Stamp } from './passport';
 import { appReady, interact, journeyEnded, journeyHeaders, startJourney } from './journey';
 import { Proposals } from './proposals';
-import { journeyLabel } from './twist';
+import { journeyLabel, LEVEL_NAME } from './twist';
 import { fmtCountdown, msToNextPuzzle, pct, useNow } from './time';
 import { compact, twistInfo } from './twist';
 
@@ -263,7 +263,10 @@ const Intro = (p: { puzzle: Puzzle; streak: number; players: number; busy: boole
           {Array.from({ length: p.puzzle.par }, (_, i) => (
             <span key={i} className="leg-dot" style={{ animationDelay: `${300 + i * 160}ms` }} />
           ))}
-          <span className="leg-par">par {p.puzzle.par} hops</span>
+          <span className="leg-par">
+            par {p.puzzle.par} hops
+            {p.puzzle.level && ` · ${LEVEL_NAME[p.puzzle.level]}`}
+          </span>
         </div>
         <div className="leg">
           <span className="dest-ring" style={{ color: INK[to.id] }}>

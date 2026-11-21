@@ -1,9 +1,12 @@
 import graphJson from './graph.json';
+import { isLevel } from './bot';
+import type { Level } from './bot';
 import puzzlesJson from './puzzles.json';
 
 type Graph = Record<string, [string, string[]]>;
 export const graph: Graph = graphJson as unknown as Graph;
-export const puzzlePool: { start: string; target: string; par: number }[] = puzzlesJson;
+export type PoolPuzzle = { start: string; target: string; par: number; level: Level };
+export const puzzlePool: PoolPuzzle[] = puzzlesJson.map((p) => ({ ...p, level: isLevel(p.level) ? p.level : 'medium' }));
 
 export const hasNode = (name: string): boolean => Object.hasOwn(graph, name);
 export const exitsOf = (name: string): string[] => graph[name]?.[1] ?? [];

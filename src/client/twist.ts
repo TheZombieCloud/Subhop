@@ -1,10 +1,12 @@
-import type { Puzzle, Twist } from '../shared/api';
+import type { Level, Puzzle, Twist } from '../shared/api';
 
 /** Kicker above the route: whose journey it is and which way home lies. */
 export const journeyLabel = (p: Pick<Puzzle, 'home' | 'by'>): string => {
   const base = p.home === 'end' ? 'Today’s journey home' : p.home === 'start' ? 'Today’s journey from home' : 'Today’s journey';
   return p.by ? `${base} · picked by u/${p.by}` : base;
 };
+
+export const LEVEL_NAME: Record<Level, string> = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 
 /** `stamp` is the text on the notice stamp; `rule` explains it in a sentence. */
 export type TwistInfo = { stamp: string; name: string; rule: string };

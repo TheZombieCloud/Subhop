@@ -10,7 +10,7 @@ import { call } from './api';
 import { INK } from './ink';
 import { BoxStamp, InkDefs, MiniStamp, Stamp } from './passport';
 import { fmtCountdown, msToNextPuzzle, useNow } from './time';
-import { journeyLabel, twistInfo } from './twist';
+import { journeyLabel, LEVEL_NAME, twistInfo } from './twist';
 
 // Inline view shown in the feed. Kept light: one fetch, no game logic.
 export const Splash = () => {
@@ -65,7 +65,10 @@ export const Splash = () => {
           {Array.from({ length: puzzle.par }, (_, i) => (
             <span key={i} className="leg-dot" style={{ animationDelay: `${i * 160}ms` }} />
           ))}
-          <span>par {puzzle.par}</span>
+          <span>
+            par {puzzle.par}
+            {puzzle.level && ` · ${LEVEL_NAME[puzzle.level]}`}
+          </span>
         </div>
         <div className="splash-leg">
           {run?.status === 'finished' ? (

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ProposalsResponse, ProposeRequest, VoteRequest } from '../shared/api';
 import { nodeNames } from '../shared/graph';
 import { checkProposal, netFor, PROPOSAL_MAX_HOPS, PROPOSAL_MIN_HOPS } from '../shared/rules';
+import { LEVEL_NAME } from './twist';
 import { call } from './api';
 import { interact } from './journey';
 import { MiniStamp } from './passport';
@@ -140,8 +141,10 @@ const ProposeForm = (p: {
         {!check
           ? `Pick two communities ${PROPOSAL_MIN_HOPS}–${PROPOSAL_MAX_HOPS} hops apart.`
           : check.ok
-            ? `${check.hops} hops apart. Good journey.`
-            : `${check.reason}. Needs ${PROPOSAL_MIN_HOPS}–${PROPOSAL_MAX_HOPS} hops.`}
+            ? `${check.hops} hops apart. ${LEVEL_NAME[check.level]} journey.`
+            : check.reason.startsWith('Too hard')
+              ? `${check.reason}. Try a different pair.`
+              : `${check.reason}. Needs ${PROPOSAL_MIN_HOPS}–${PROPOSAL_MAX_HOPS} hops.`}
       </p>
       <button className="cta" disabled={p.busy || !check?.ok} onClick={() => p.onSubmit({ start, target })}>
         Propose r/{start || '…'} → r/{target || '…'}

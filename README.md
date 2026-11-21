@@ -4,7 +4,7 @@ A daily puzzle where the player must find the shortest path between two subreddi
 
 ## How it works
 
-Each day there is a new puzzle released, typically with a start point and an end point (e.g. r/batman to r/knitting). The player must then find the shortest path between the two points. The subreddits that a player can travel to from any given subreddit are the 6 exit points for that subreddit, which are the 6 subreddits that the same people comment in.
+Each day there is a new puzzle released, typically with a start point and an end point (e.g. r/batman to r/knitting). Each puzzle is marked easy, medium or hard, and the puzzles get harder through the week. The player must then find the shortest path between the two points. The subreddits that a player can travel to from any given subreddit are the 6 exit points for that subreddit, which are the 6 subreddits that the same people comment in.
 
 After each hop the game shows whether the player is warmer or colder. The player collects a stamp for each subreddit that the player travels through, and there is a passport page that shows all 500 stamps. Each puzzle has a leaderboard (fewest hops first, then fastest time). Once the player has completed the puzzle the player can vote for the next days puzzle or propose one.
 

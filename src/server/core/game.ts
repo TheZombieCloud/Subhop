@@ -2,9 +2,12 @@ import { redis } from '@devvit/web/server';
 import type { Crowd, LeaderboardRow, NodeView, PathStat, Puzzle, Results, Run, Tally } from '../../shared/api';
 import { avatarOf } from './avatars';
 import { passportSummary, runTag } from './passport';
+import { isLevel } from '../../shared/bot';
+import type { Level } from '../../shared/bot';
 import { puzzlePool } from '../../shared/graph';
 import {
   activeHome,
+  baseLevelFor,
   buildPuzzle,
   homePuzzle,
   homeSideFor,
@@ -15,14 +18,14 @@ import {
   parseTwist,
   twistKindFor,
 } from './net';
-import type { TwistKind } from './net';
+import type { HomeConfig, TwistKind } from './net';
 
 /*
  * Redis schema. Devvit Redis can't enumerate keys, so every key is derivable
  * from the puzzle id (YYYY-MM-DD or test-<ts>), the post id, or the username.
  *
  *   puzzle:{pid}        hash   start, target, par, number, twist (JSON|''), home 'start'|'end'|'',
- *                              homeExits (JSON), by (proposer username|'')
+ *                              homeExits (JSON), by (proposer username|''), level ('easy'|'medium'|'hard'|'')
  *   post:{postId}       string pid this post plays
  *   run:{pid}:{user}    string JSON Run
  *   lb:{pid}            zset   user -> hops * 1e9 + timeMs  (ascending = best)
@@ -40,7 +43,27 @@ export { dailyNumber, todayId } from './days';
 const SCORE_HOP = 1e9;
 export const MAX_HOPS = 40;
 
-const poolEntry = (n: number) => puzzlePool[(((n - 1) % puzzlePool.length) + puzzlePool.length) % puzzlePool.length]!;
+// Daily #1 is always the showcase. After that each day draws from its weekday's level; numbers
+// that share a level never repeat a puzzle until that level's list runs out.
+// `skip` moves to a stand-in when the day's pick can't carry the day's twist.
+const poolEntry = (n: number, level: Level, skip = 0) => {
+  const list = puzzlePool.filter((p, i) => i > 0 && p.level === level);
+  const at = n + skip * 53;
+  return n === 1 || !list.length ? puzzlePool[0]! : list[((at % list.length) + list.length) % list.length]!;
+};
+
+/** A pool daily. On a twist day, the first pick whose twist the bot can still solve fairly. */
+const poolPuzzle = (pid: string, number: number, home: HomeConfig | null): Puzzle => {
+  const kind = twistKindFor(pid);
+  const build = (skip: number) => buildPuzzle({ id: pid, number, ...poolEntry(number, baseLevelFor(pid), skip) }, home, kind);
+  const first = build(0);
+  if (!kind || first.twist || number === 1) return first;
+  for (let skip = 1; skip <= 8; skip++) {
+    const next = build(skip);
+    if (next.twist) return next;
+  }
+  return first;
+};
 
 export const getPuzzle = async (pid: string): Promise<Puzzle> => {
   const stored = await redis.hGetAll(`puzzle:${pid}`);
@@ -57,6 +80,7 @@ export const getPuzzle = async (pid: string): Promise<Puzzle> => {
       home: stored.home === 'start' ? 'start' : stored.home === 'end' || stored.home === '1' ? 'end' : null,
       homeExits: parseExits(stored.homeExits),
       by: stored.by || null,
+      level: isLevel(stored.level) ? stored.level : null,
     };
   }
   // A daily is, in order of preference: yesterday's most-voted player proposal, a home
@@ -67,8 +91,8 @@ export const getPuzzle = async (pid: string): Promise<Puzzle> => {
   const home = await activeHome();
   const side = home ? homeSideFor(home.mode, number) : null;
   const proposal = await winningProposal(pid, home, side);
-  const base = proposal ?? (home && side && homePuzzle(home, side, number)) ?? poolEntry(number);
-  const puzzle = buildPuzzle({ id: pid, number, ...base }, home, twistKindFor(pid));
+  const base = proposal ?? (home && side && homePuzzle(home, side, number)) ?? null;
+  const puzzle = base ? buildPuzzle({ id: pid, number, ...base }, home, twistKindFor(pid)) : poolPuzzle(pid, number, home);
   await savePuzzle(puzzle);
   return puzzle;
 };
@@ -83,6 +107,7 @@ export const savePuzzle = async (p: Puzzle): Promise<void> => {
     home: p.home ?? '',
     homeExits: JSON.stringify(p.homeExits),
     by: p.by ?? '',
+    level: p.level ?? '',
   });
 };
 
@@ -93,7 +118,7 @@ export const randomTestPuzzle = async (): Promise<Puzzle> => {
   const n = 1 + Math.floor(Math.random() * puzzlePool.length);
   const home = await activeHome();
   const side = home ? homeSideFor(home.mode, n) : null;
-  const base = (home && side && homePuzzle(home, side, n)) ?? poolEntry(n);
+  const base = (home && side && homePuzzle(home, side, n)) ?? puzzlePool[n - 1] ?? puzzlePool[0]!;
   const kind = TEST_TWISTS[Math.floor(Math.random() * TEST_TWISTS.length)] ?? null;
   return buildPuzzle({ id: `test-${Date.now()}`, number: 0, ...base }, home, kind);
 };

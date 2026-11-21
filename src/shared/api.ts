@@ -1,3 +1,6 @@
+import type { Level } from './bot';
+
+export type { Level } from './bot';
 export type Exit = { name: string };
 
 /** Weekly rule changes. Par is always computed with the twist applied. */
@@ -16,6 +19,7 @@ export type Puzzle = {
   home: HomeSide | null; // which end is the community this post lives in
   homeExits: string[]; // only when home isn't on the built-in map: the subs mods linked it to
   by: string | null; // username of the player who proposed this journey
+  level: Level | null; // how hard the bot found it (null on puzzles stored before levels existed)
 };
 
 export type HomeSide = 'start' | 'end';

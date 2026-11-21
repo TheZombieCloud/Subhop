@@ -1018,6 +1018,22 @@ button:disabled {
   color: var(--accent, var(--muted));
 }
 
+/* Hot or cold after each hop. */
+.temp {
+  display: inline-block;
+  margin: 8px 0 0;
+  padding: 3px 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  font: 700 11px var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  animation: slam 0.3s 0.25s both;
+}
+.temp.warm { color: #b3401f; }
+.temp.cold { color: #2b5d8a; }
+.temp.same { color: var(--muted); }
+
 /* ---- motion ---- */
 @keyframes slam {
   0% {

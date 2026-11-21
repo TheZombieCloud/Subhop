@@ -143,6 +143,13 @@ export const hopsLeft = (p: NetInput & Pick<Puzzle, 'twist' | 'par'>, path: stri
   return route.length ? route.length - 1 : p.par;
 };
 
+/** How a hop to `to` changes the distance left: c = closer, s = the same, f = further. */
+export const hopLetter = (p: NetInput & Pick<Puzzle, 'twist' | 'par'>, path: string[], to: string): 'c' | 's' | 'f' => {
+  const before = hopsLeft(p, path);
+  const after = hopsLeft(p, [...path, to]);
+  return after < before ? 'c' : after > before ? 'f' : 's';
+};
+
 /** Choose a twist that actually changes the puzzle, and the new par. */
 export const planTwist = (
   net: Net,

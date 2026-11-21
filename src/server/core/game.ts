@@ -8,7 +8,7 @@ import {
   buildPuzzle,
   homePuzzle,
   homeSideFor,
-  hopsLeft,
+  hopLetter,
   netFor,
   optimalRoute,
   parseExits,
@@ -151,9 +151,9 @@ export const hop = async (puzzle: Puzzle, user: string, to: string): Promise<Hop
   }
 
   if (run.hops === 0) await redis.hIncrBy(`first:${puzzle.id}`, to, 1);
-  const closer = hopsLeft(puzzle, [...run.path, to]) < hopsLeft(puzzle, run.path);
-  run.moves = (run.moves ?? '') + (closer ? 'c' : 's');
-  if (!closer) await countWrong(puzzle.id, here, to);
+  const letter = hopLetter(puzzle, run.path, to);
+  run.moves = (run.moves ?? '') + letter;
+  if (letter !== 'c') await countWrong(puzzle.id, here, to);
   run.path.push(to);
   run.hops += 1;
   if (to === puzzle.target) {

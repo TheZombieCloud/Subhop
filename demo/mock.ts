@@ -18,7 +18,7 @@ import type {
 } from '../src/shared/api';
 import { district } from '../src/shared/districts';
 import { hasNode, nodeNames, pathBetween, puzzlePool, shortestPath } from '../src/shared/graph';
-import { buildPuzzle, checkProposal, homeNet, homePuzzle, hopsLeft, netFor, optimalRoute } from '../src/shared/rules';
+import { buildPuzzle, checkProposal, homeNet, homePuzzle, hopLetter, netFor, optimalRoute } from '../src/shared/rules';
 import type { HomeConfig, TwistKind } from '../src/shared/rules';
 
 const LATENCY_MS = 280;
@@ -292,8 +292,7 @@ const handle = (path: string, body: Record<string, unknown>): Reply => {
       const t = puzzle.twist;
       if (t?.kind === 'avoid' && to === t.sub) return err(`r/${to} is closed today`);
       if (t?.kind === 'via' && to === puzzle.target && !run.path.includes(t.sub)) return err(`Pass through r/${t.sub} first`);
-      const closer = hopsLeft(puzzle, [...run.path, to]) < hopsLeft(puzzle, run.path);
-      run = { ...run, path: [...run.path, to], hops: run.hops + 1, moves: (run.moves ?? '') + (closer ? 'c' : 's') };
+      run = { ...run, path: [...run.path, to], hops: run.hops + 1, moves: (run.moves ?? '') + hopLetter(puzzle, run.path, to) };
       const newStamp = !STAMPED_BEFORE.has(to) && !freshStamps.includes(to);
       if (newStamp) freshStamps.push(to);
       if (to !== puzzle.target) return ok({ status: 'playing', run, node: nodeView(to), newStamp });

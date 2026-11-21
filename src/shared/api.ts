@@ -26,7 +26,7 @@ export type Run = {
   status: RunStatus;
   path: string[]; // every node visited, including start (backtracks removed)
   hops: number; // includes +1 penalty for each step back
-  moves?: string; // one letter per move: c = got closer, s = sideways or further, b = stepped back
+  moves?: string; // one letter per move: c = got closer, s = no closer, f = further away, b = stepped back
   startedAt: number;
   finishedAt?: number;
 };

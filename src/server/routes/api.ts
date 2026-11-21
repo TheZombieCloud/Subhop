@@ -59,7 +59,7 @@ const times = (n: number, one: string, many: string) => (n === 1 ? one : `${n} $
 
 /** How the run went, in plain words. Never names a community, so it can't spoil the route. */
 const runStory = (moves: string): string => {
-  const wrong = [...moves].filter((m) => m === 's').length;
+  const wrong = [...moves].filter((m) => m === 's' || m === 'f').length;
   const back = [...moves].filter((m) => m === 'b').length;
   if (!wrong && !back) return 'Clean run, every hop got closer.';
   const parts = [

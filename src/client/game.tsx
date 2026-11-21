@@ -384,6 +384,10 @@ const Playing = (p: {
   const targetLocked = detour !== null && !detourDone;
   const here = district(p.node.name);
   const entry = p.run.path.length;
+  // Hot or cold: how the hop that brought you here changed the distance left.
+  const last = p.run.moves?.slice(-1);
+  const temp =
+    last === 'c' ? { cls: 'warm', text: 'Warmer' } : last === 'f' ? { cls: 'cold', text: 'Colder' } : last === 's' ? { cls: 'same', text: 'No closer' } : null;
 
   return (
     <div className="screen playing">
@@ -420,6 +424,7 @@ const Playing = (p: {
           <SubTitle sub={p.node.name} />
           <p className="visa-desc">{p.node.description}</p>
           <PeekLine sub={p.node.name} />
+          {temp && <p className={`temp ${temp.cls}`}>{temp.text}</p>}
         </div>
         <div className="visa-stamp">
           <Stamp sub={p.node.name} caption={entry === 1 ? 'Departure' : `Entry ${entry}`} size={112} className="slam" />

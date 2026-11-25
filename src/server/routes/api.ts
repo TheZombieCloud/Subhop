@@ -35,7 +35,7 @@ import {
 } from '../core/game';
 import { netFor } from '../core/net';
 import { icons } from '../core/icons';
-import { follow, isFollowing, updateStreakFlair } from '../core/social';
+import { ensureScoreThread, follow, forgetScoreThread, isFollowing, updateStreakFlair } from '../core/social';
 import { collectedSubs, passportSummary, passportTotal, runTag, stamp } from '../core/passport';
 import { journeyRoutes, trackGiveUp, trackHop } from '../core/journey';
 import { peek } from '../core/peek';
@@ -190,12 +190,22 @@ api.post('/share', async (c) => {
     `**${run.hops} hops** (par ${puzzle.par}) in ${formatTime((run.finishedAt ?? run.startedAt) - run.startedAt)}${top}  \n` +
     `${run.moves ? runStory(run.moves) : ''}${stamps}`.trim();
 
+  // Always from the player's own account, as a reply under the stickied results thread.
+  // Never from the app account: if Reddit refuses, the player is told and nothing is posted.
+  const postId = context.postId;
+  const reply = async () => reddit.submitComment({ id: await ensureScoreThread(postId), text, runAs: 'USER' });
   let comment;
   try {
-    comment = await reddit.submitComment({ id: context.postId, text, runAs: 'USER' });
-  } catch (err) {
-    console.warn('Comment as user failed, posting as app', err);
-    comment = await reddit.submitComment({ id: context.postId, text: `u/${username} — ${text}`, runAs: 'APP' });
+    comment = await reply();
+  } catch (error) {
+    console.warn('result comment failed, retrying with a fresh results thread', error);
+    try {
+      await forgetScoreThread(postId);
+      comment = await reply();
+    } catch (again) {
+      console.error('result comment failed', again);
+      return fail(c, 'Couldn’t post your result right now');
+    }
   }
   return c.json<ShareResponse>({ ok: true, commentUrl: comment?.permalink ? `https://reddit.com${comment.permalink}` : null });
 });

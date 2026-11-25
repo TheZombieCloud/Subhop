@@ -24,11 +24,12 @@ These are the menu items (in the subreddit menu unless stated):
 - **Subhop: post today's puzzle** posts the daily puzzle by hand.
 - **Subhop: re-roll today's puzzle** replaces the daily puzzle with a new one (only for a day nobody has played).
 - **Subhop: stats for this puzzle** (in the post menu) shows how many players started, finished and gave up, as well as where they gave up.
+- **Subhop: add results threads to past posts** adds the stickied "Results thread" comment to Subhop posts made before the app started adding it. It can be run more than once.
 - **Subhop: post a test puzzle** posts a random puzzle with its own leaderboard.
 
 ## What the app does as the player
 
-- It posts the players result as a comment, only when the player presses the button for it. The path is not included so the puzzle is not spoiled for other players.
+- It posts the players result as a comment from the players own account, only when the player presses the button for it. The comment is a reply to a single stickied "Results thread" comment that the app makes on each puzzle post, so results stay out of the way of the discussion. The path is not included so the puzzle is not spoiled for other players. The player can delete the comment like any other comment.
 - It follows the subreddit for the player, only when the player presses the follow button.
 - It sets the players user flair to their streak (e.g. "Subhop · 3-day streak"). It does not replace a flair that the player or a moderator chose.
 

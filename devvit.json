@@ -71,6 +71,13 @@
         "endpoint": "/internal/menu/puzzle-stats"
       },
       {
+        "label": "Subhop: add results threads to past posts",
+        "description": "Add the stickied results thread to Subhop posts that don't have one yet",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/backfill-results"
+      },
+      {
         "label": "Subhop: delete my data",
         "description": "Remove your runs, scores, passport, streak and streak flair",
         "location": "subreddit",

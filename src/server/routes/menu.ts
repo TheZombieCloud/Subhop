@@ -6,6 +6,7 @@ import { resetProposalsFor } from '../core/proposals';
 import { nodeNames } from '../../shared/graph';
 import { getHomeConfig, HOME_MODES, MAX_HOME_EXITS, MIN_HOME_EXITS, sidebarRelated } from '../core/net';
 import { createDailyPost, createTestPost } from '../core/post';
+import { backfillScoreThreads } from '../core/social';
 import { puzzleReport, statKeys } from '../core/stats';
 
 export const menu = new Hono();
@@ -77,6 +78,18 @@ menu.post('/reroll-today', async (c) => {
   } catch (error) {
     console.error('reroll-today failed', error);
     return c.json<UiResponse>({ showToast: 'Failed to re-roll today’s puzzle' }, 400);
+  }
+});
+
+// Mods only: add the stickied results thread to dailies posted before the app made one itself.
+menu.post('/backfill-results', async (c) => {
+  try {
+    const { added, had, failed } = await backfillScoreThreads();
+    const text = `Results threads: ${added} added, ${had} already there` + (failed ? `, ${failed} failed (deleted or locked posts)` : '');
+    return c.json<UiResponse>({ showToast: { text, appearance: failed && !added ? 'neutral' : 'success' } });
+  } catch (error) {
+    console.error('backfill-results failed', error);
+    return c.json<UiResponse>({ showToast: 'Couldn’t add results threads' }, 400);
   }
 });
 

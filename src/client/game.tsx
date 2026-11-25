@@ -174,7 +174,7 @@ export const App = () => {
                   interact('share_result');
                   return call<ShareResponse>('share', {});
                 },
-                () => showToast('Posted to the comments')
+                () => showToast('Posted from your account in the results thread')
               )
             }
             onPassport={() => {
@@ -637,7 +637,7 @@ const ResultsScreen = (p: {
 
       {finished && (
         <button className="cta" disabled={p.busy} onClick={p.onShare}>
-          Post my result in the comments
+          Comment my result{p.username ? ` as u/${p.username}` : ''}
         </button>
       )}
 
@@ -964,19 +964,13 @@ const Chapter = ({ title, aside, children }: { title: string; aside?: ReactNode;
   </section>
 );
 
-/** One of Reddit's eight default avatars, always the same one for a given name. */
-const defaultAvatar = (name: string) => {
-  const n = [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 8;
-  return `https://www.redditstatic.com/avatars/defaults/v2/avatar_default_${n}.png`;
-};
-
-/** Their Snoovatar, else a Reddit default avatar; their initial only if images won't load at all. */
+/** Their own Snoovatar if they have one, else their initial on a paper disc. */
 const Avatar = ({ name, url }: { name: string; url: string | null }) => {
   const [broken, setBroken] = useState(false);
-  // Snoovatars are tall full-body cutouts and stand free; the defaults are square and fill a circle.
-  return !broken ? (
-    <span className={`avatar${url ? ' snoo' : ''}`} aria-hidden="true">
-      <img src={url ?? defaultAvatar(name)} alt="" onError={() => setBroken(true)} />
+  // Snoovatars are tall full-body cutouts and stand free, with no disc behind them.
+  return url && !broken ? (
+    <span className="avatar snoo" aria-hidden="true">
+      <img src={url} alt="" onError={() => setBroken(true)} />
     </span>
   ) : (
     <span className="avatar initial" aria-hidden="true">

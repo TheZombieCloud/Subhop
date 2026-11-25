@@ -6,13 +6,15 @@ import { resetRun } from './game';
  * "Delete my Subhop data": everything this subreddit's Subhop stores about one player.
  *
  *   run:{day}:{user}, and their place in lb/paths/hops for that day   every daily since the first
+ *   puzzle:{day} "by"                                                   their name on dailies they picked
  *   passport:{user}, streak:{user}, avatar:{user}
  *   followers, flair:ours                                               their entry
  *   propvote / propmine / props / propby for tomorrow                   their vote and proposal
  *   their user flair, only if it's the streak flair Subhop set
  *
- * Left alone: anonymous tallies (first moves), test-post runs (their ids can't be listed),
- * and "picked by u/name" on dailies already posted. Their own comments are theirs to delete.
+ * Left alone: anonymous tallies (first moves) and test-post runs (their ids can't be listed).
+ * Titles of posts already made can't be edited, so "picked by u/name" stays in those titles;
+ * the app itself stops showing it. Their own comments are theirs to delete.
  */
 
 const MAX_DAYS = 1000;
@@ -21,6 +23,7 @@ export const deleteUserData = async (user: string): Promise<void> => {
   const end = dayAfter(todayId());
   for (let day = await firstDay(), i = 0; day <= end && i < MAX_DAYS; day = dayAfter(day), i++) {
     await resetRun(day, user);
+    if ((await redis.hGet(`puzzle:${day}`, 'by')) === user) await redis.hSet(`puzzle:${day}`, { by: '' });
   }
 
   const tomorrow = end;

@@ -1,5 +1,6 @@
 import { reddit, redis } from '@devvit/web/server';
 import type { Puzzle } from '../../shared/api';
+import { ensureScoreThread } from './social';
 import { getPuzzle, linkPost, randomTestPuzzle, savePuzzle, todayId } from './game';
 
 const TWIST_TAG = { avoid: 'Border closed', via: 'Detour', noback: 'No return' } as const;
@@ -17,6 +18,11 @@ const createPuzzlePost = async (puzzle: Puzzle, title: string) => {
     textFallback: { text: `Get from r/${puzzle.start} to r/${puzzle.target} in as few hops as you can. Par ${puzzle.par}.` },
   });
   await linkPost(post.id, puzzle.id);
+  try {
+    await ensureScoreThread(post.id);
+  } catch (error) {
+    console.warn('results thread failed, will retry on first share', error); // the post still stands
+  }
   return post;
 };
 
